@@ -54,7 +54,8 @@ ifdescribe(!process.mas)('autoUpdater module', function () {
       });
     });
 
-    ifdescribe(process.platform === 'darwin')('on Mac', function () {
+    // TODO (jkleinsc) enable autoUpdater tests for arm64 mac
+    ifdescribe(process.platform === 'darwin' && process.arch !== 'arm64')('on Mac', function () {
       it('emits an error when the application is unsigned', async () => {
         const errorEvent = emittedOnce(autoUpdater, 'error');
         autoUpdater.setFeedURL({ url: '' });

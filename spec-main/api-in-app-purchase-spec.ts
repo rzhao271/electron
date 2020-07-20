@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { inAppPurchase } from 'electron/main';
 
 describe('inAppPurchase module', function () {
-  if (process.platform !== 'darwin') return;
+  if (process.platform !== 'darwin' || process.arch === 'arm64') return;
 
   this.timeout(3 * 60 * 1000);
 

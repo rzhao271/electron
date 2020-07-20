@@ -662,6 +662,7 @@ step-persist-data-for-tests: &step-persist-data-for-tests
       - src/electron
       - src/third_party/electron_node
       - src/third_party/nan
+      - src/cross-arch-snapshots
 
 step-electron-dist-unzip: &step-electron-dist-unzip
   run:
@@ -860,8 +861,13 @@ step-maybe-trigger-arm-test: &step-maybe-trigger-arm-test
       if [ "$TRIGGER_ARM_TEST" == "true" ] && [ -z "$CIRCLE_PR_NUMBER" ]; then
         #Trigger VSTS job, passing along CircleCI job number and branch to build
         if [ "`uname`" == "Darwin" ]; then
-          echo "Triggering electron-arm2-testing build on Azure DevOps"  
-          node electron/script/release/ci-release-build.js --job=electron-arm2-testing --ci=DevOps --armTest --circleBuildNum=$CIRCLE_BUILD_NUM $CIRCLE_BRANCH
+          if [ x"$MAS_BUILD" == x"true" ]; then
+            export DEVOPS_BUILD="electron-mas-arm64-testing"
+          else
+            export DEVOPS_BUILD="electron-osx-arm64-testing"
+          fi
+          echo "Triggering $DEVOPS_BUILD build on Azure DevOps"
+          node electron/script/release/ci-release-build.js --job=$DEVOPS_BUILD --ci=DevOps --armTest --circleBuildNum=$CIRCLE_BUILD_NUM $CIRCLE_BRANCH
         else
           echo "Triggering electron-$TARGET_ARCH-testing build on VSTS"  
           node electron/script/release/ci-release-build.js --job=electron-$TARGET_ARCH-testing --ci=VSTS --armTest --circleBuildNum=$CIRCLE_BUILD_NUM $CIRCLE_BRANCH
@@ -1023,23 +1029,23 @@ step-check-for-doc-only-change: &step-check-for-doc-only-change
       node script/yarn install --frozen-lockfile
       if node script/doc-only-change.js --prNumber=$CIRCLE_PR_NUMBER --prURL=$CIRCLE_PULL_REQUEST --prBranch=$CIRCLE_BRANCH; then
         #PR is doc only change; save file with value true to indicate doc only change
-        echo "true" > .skip-ci-build
+        echo "true" > ../../.skip-ci-build
       else
         #PR is not a doc only change; create empty file to indicate check has been done
-        touch .skip-ci-build
+        touch ../../.skip-ci-build
       fi
 
 step-persist-doc-only-change: &step-persist-doc-only-change
   persist_to_workspace:
     root: .
     paths:
-      - src/electron/.skip-ci-build
+      - .skip-ci-build
 
 step-maybe-early-exit-doc-only-change: &step-maybe-early-exit-doc-only-change
   run:
     name: Shortcircuit build if doc only change
     command: |
-      if [ -s src/electron/.skip-ci-build ]; then
+      if [ -s .skip-ci-build ]; then
         circleci-agent step halt
       fi
 
@@ -1047,7 +1053,7 @@ step-maybe-early-exit-no-doc-change: &step-maybe-early-exit-no-doc-change
   run:
     name: Shortcircuit job if change is not doc only
     command: |
-      if [ ! -s src/electron/.skip-ci-build ]; then
+      if [ ! -s .skip-ci-build ]; then
         circleci-agent step halt
       fi
 
@@ -1058,6 +1064,15 @@ step-ts-compile: &step-ts-compile
       cd src
       ninja -C out/Default electron:default_app_js -j $NUMBER_OF_NINJA_PROCESSES
       ninja -C out/Default electron:electron_js2c -j $NUMBER_OF_NINJA_PROCESSES
+
+step-check-for-src-cache: &step-check-for-src-cache
+  run:
+    name: Check if src has been populated from the cache
+    command: |
+      if [ -s ".have-src-cache" ]; then
+        rm .have-src-cache
+        echo 'export HAVE_SRC_CACHE=true' >> $BASH_ENV
+      fi
 
 # Lists of steps.
 steps-lint: &steps-lint
@@ -1358,6 +1373,18 @@ commands:
           steps:
             - *step-maybe-restore-src-cache-marker
             - run:
+                name: Create a marker to indicate we have a src cache
+                command: |
+                  if [ -f ".src-cache-marker" ]; then
+                    echo "true" > .have-src-cache
+                  else
+                    touch .have-src-cache
+                  fi
+            - persist_to_workspace:
+                root: .
+                paths:
+                  - .have-src-cache
+            - run:
                 name: Halt the job early if the src cache exists
                 command: |
                   if [ -f ".src-cache-marker" ]; then
@@ -1374,8 +1401,9 @@ commands:
             fi
   checkout-from-cache:
     steps:
-      - *step-checkout-electron
+      - *step-check-for-src-cache
       - *step-maybe-early-exit-doc-only-change
+      - *step-checkout-electron
       - *step-depot-tools-get
       - *step-depot-tools-add-to-path
       - *step-generate-deps-hash
@@ -2009,7 +2037,7 @@ jobs:
           persist: true
           checkout: false
           checkout-and-assume-cache: true
-          attach: false
+          attach: true
 
   osx-testing-x64-gn-check:
     <<: *machine-mac
@@ -2090,13 +2118,14 @@ jobs:
       <<: *env-ninja-status
       <<: *env-macos-build
       <<: *env-apple-silicon
+      TRIGGER_ARM_TEST: true
       GCLIENT_EXTRA_ARGS: '--custom-var=checkout_mac=True --custom-var=host_os=mac'
     steps:
       - electron-build:
           persist: true
           checkout: false
           checkout-and-assume-cache: true
-          attach: false
+          attach: true
 
   mas-testing-x64:
     <<: *machine-mac-large
@@ -2112,7 +2141,7 @@ jobs:
           persist: true
           checkout: false
           checkout-and-assume-cache: true
-          attach: false
+          attach: true
 
   mas-testing-x64-gn-check:
     <<: *machine-mac
@@ -2196,13 +2225,14 @@ jobs:
       <<: *env-ninja-status
       <<: *env-macos-build
       <<: *env-mas-apple-silicon
+      TRIGGER_ARM_TEST: true
       GCLIENT_EXTRA_ARGS: '--custom-var=checkout_mac=True --custom-var=host_os=mac'
     steps:
       - electron-build:
           persist: true
           checkout: false
           checkout-and-assume-cache: true
-          attach: false
+          attach: true
 
   # Layer 3: Tests.
   linux-x64-unittests:
