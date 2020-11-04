@@ -58,8 +58,20 @@ steps:
     cd src
     export ELECTRON_OUT_DIR=Default
     export npm_config_arch=arm64
-    (cd electron && node script/yarn test --enable-logging --runners main,remote)
-  displayName: 'Run Electron tests'
+    (cd electron && node script/yarn test --enable-logging --runners main)
+  displayName: 'Run Electron main tests'
+  timeoutInMinutes: 20
+  env:
+    ELECTRON_DISABLE_SECURITY_WARNINGS: 1
+    IGNORE_YARN_INSTALL_ERROR: 1
+    ELECTRON_TEST_RESULTS_DIR: junit
+
+- bash: |
+    cd src
+    export ELECTRON_OUT_DIR=Default
+    export npm_config_arch=arm64
+    (cd electron && node script/yarn test --enable-logging --runners remote)
+  displayName: 'Run Electron remote tests'
   timeoutInMinutes: 20
   env:
     ELECTRON_DISABLE_SECURITY_WARNINGS: 1
