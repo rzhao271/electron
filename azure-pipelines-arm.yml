@@ -73,6 +73,7 @@ steps:
     (cd electron && node script/yarn test --enable-logging --runners remote)
   displayName: 'Run Electron remote tests'
   timeoutInMinutes: 20
+  condition: succeededOrFailed()
   env:
     ELECTRON_DISABLE_SECURITY_WARNINGS: 1
     IGNORE_YARN_INSTALL_ERROR: 1
