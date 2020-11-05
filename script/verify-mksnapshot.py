@@ -32,7 +32,7 @@ def main():
         print('ok mksnapshot successfully created snapshot_blob.bin.')
         context_snapshot = 'v8_context_snapshot.bin'
         if platform.system() == 'Darwin':
-          if os.environ.get('TARGET_ARCH') == 'arm64'):
+          if os.environ.get('TARGET_ARCH') == 'arm64':
             context_snapshot = 'v8_context_snapshot.arm64.bin'
           else:
             context_snapshot = 'v8_context_snapshot.x86_64.bin'
