@@ -730,7 +730,13 @@ step-verify-mksnapshot: &step-verify-mksnapshot
     name: Verify mksnapshot
     command: |
       cd src
-      python electron/script/verify-mksnapshot.py --source-root "$PWD" --build-dir out/Default
+      if  [ "$TARGET_ARCH" == "arm64" ] &&[ "`uname`" == "Darwin" ]; then
+        python electron/script/verify-mksnapshot.py --source-root "$PWD" --build-dir out/Default --snapshot-files-dir $PWD/out/Default/cross-arch-snapshots
+      else
+        python electron/script/verify-mksnapshot.py --source-root "$PWD" --build-dir out/Default
+      fi
+
+      
 
 step-verify-chromedriver: &step-verify-chromedriver
   run:
