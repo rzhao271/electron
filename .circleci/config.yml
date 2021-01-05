@@ -97,6 +97,10 @@ machine-mac-large-arm: &machine-mac-large-arm
   macos:
     xcode: "12.2.0"
 
+machine-mac-arm64: &machine-mac-arm64
+  resource_class: electronjs/macos-arm64
+  machine: true
+
 # Build configurations options.
 env-testing-build: &env-testing-build
   GN_CONFIG: //electron/build/args/testing.gn
@@ -141,6 +145,7 @@ env-apple-silicon: &env-apple-silicon
   GN_EXTRA_ARGS: 'target_cpu = "arm64" use_prebuilt_v8_context_snapshot = true'
   TARGET_ARCH: arm64
   USE_PREBUILT_V8_CONTEXT_SNAPSHOT: 1
+  NPM_CONFIG_ARCH: arm64
 
 env-arm64: &env-arm64
   GN_EXTRA_ARGS: 'target_cpu = "arm64" fatal_linker_warnings = false enable_linux_installer = false'
@@ -1029,23 +1034,23 @@ step-check-for-doc-only-change: &step-check-for-doc-only-change
       node script/yarn install --frozen-lockfile
       if node script/doc-only-change.js --prNumber=$CIRCLE_PR_NUMBER --prURL=$CIRCLE_PULL_REQUEST --prBranch=$CIRCLE_BRANCH; then
         #PR is doc only change; save file with value true to indicate doc only change
-        echo "true" > ../../.skip-ci-build
+        echo "true" > .skip-ci-build
       else
         #PR is not a doc only change; create empty file to indicate check has been done
-        touch ../../.skip-ci-build
+        touch .skip-ci-build
       fi
 
 step-persist-doc-only-change: &step-persist-doc-only-change
   persist_to_workspace:
     root: .
     paths:
-      - .skip-ci-build
+      - src/electron/.skip-ci-build
 
 step-maybe-early-exit-doc-only-change: &step-maybe-early-exit-doc-only-change
   run:
     name: Shortcircuit build if doc only change
     command: |
-      if [ -s .skip-ci-build ]; then
+      if [ -s src/electron/.skip-ci-build ]; then
         circleci-agent step halt
       fi
 
@@ -1053,7 +1058,7 @@ step-maybe-early-exit-no-doc-change: &step-maybe-early-exit-no-doc-change
   run:
     name: Shortcircuit job if change is not doc only
     command: |
-      if [ ! -s .skip-ci-build ]; then
+      if [ ! -s src/electron/.skip-ci-build ]; then
         circleci-agent step halt
       fi
 
@@ -1064,15 +1069,6 @@ step-ts-compile: &step-ts-compile
       cd src
       ninja -C out/Default electron:default_app_js -j $NUMBER_OF_NINJA_PROCESSES
       ninja -C out/Default electron:electron_js2c -j $NUMBER_OF_NINJA_PROCESSES
-
-step-check-for-src-cache: &step-check-for-src-cache
-  run:
-    name: Check if src has been populated from the cache
-    command: |
-      if [ -s ".have-src-cache" ]; then
-        rm .have-src-cache
-        echo 'export HAVE_SRC_CACHE=true' >> $BASH_ENV
-      fi
 
 # Lists of steps.
 steps-lint: &steps-lint
@@ -1373,18 +1369,6 @@ commands:
           steps:
             - *step-maybe-restore-src-cache-marker
             - run:
-                name: Create a marker to indicate we have a src cache
-                command: |
-                  if [ -f ".src-cache-marker" ]; then
-                    echo "true" > .have-src-cache
-                  else
-                    touch .have-src-cache
-                  fi
-            - persist_to_workspace:
-                root: .
-                paths:
-                  - .have-src-cache
-            - run:
                 name: Halt the job early if the src cache exists
                 command: |
                   if [ -f ".src-cache-marker" ]; then
@@ -1401,9 +1385,8 @@ commands:
             fi
   checkout-from-cache:
     steps:
-      - *step-check-for-src-cache
-      - *step-maybe-early-exit-doc-only-change
       - *step-checkout-electron
+      - *step-maybe-early-exit-doc-only-change
       - *step-depot-tools-get
       - *step-depot-tools-add-to-path
       - *step-generate-deps-hash
@@ -2037,7 +2020,7 @@ jobs:
           persist: true
           checkout: false
           checkout-and-assume-cache: true
-          attach: true
+          attach: false
 
   osx-testing-x64-gn-check:
     <<: *machine-mac
@@ -2125,7 +2108,7 @@ jobs:
           persist: true
           checkout: false
           checkout-and-assume-cache: true
-          attach: true
+          attach: false
 
   mas-testing-x64:
     <<: *machine-mac-large
@@ -2141,7 +2124,7 @@ jobs:
           persist: true
           checkout: false
           checkout-and-assume-cache: true
-          attach: true
+          attach: false
 
   mas-testing-x64-gn-check:
     <<: *machine-mac
@@ -2232,7 +2215,7 @@ jobs:
           persist: true
           checkout: false
           checkout-and-assume-cache: true
-          attach: true
+          attach: false
 
   # Layer 3: Tests.
   linux-x64-unittests:
@@ -2380,6 +2363,23 @@ jobs:
       <<: *env-send-slack-notifications
     <<: *steps-verify-ffmpeg
 
+  osx-verify-arm64-hw:
+    <<: *machine-mac-arm64
+    steps:
+      - run:
+          name: Running tests
+          command: |
+            uname -a
+            echo "Hello from arm64"
+
+  osx-testing-arm64-tests:  
+    <<: *machine-mac-arm64
+    environment:
+      <<: *env-mac-large
+      <<: *env-stack-dumping
+      <<: *env-apple-silicon
+    <<: *steps-tests
+
   mas-testing-x64-tests:
     <<: *machine-mac-large
     environment:
@@ -2402,6 +2402,14 @@ jobs:
       <<: *env-machine-mac
       <<: *env-send-slack-notifications
     <<: *steps-verify-ffmpeg
+
+  mas-testing-arm64-tests:
+    <<: *machine-mac-arm64
+    environment:
+      <<: *env-mac-large
+      <<: *env-stack-dumping
+      <<: *env-apple-silicon
+    <<: *steps-tests
 
   # Layer 4: Summary.
   linux-x64-release-summary:
@@ -2597,6 +2605,7 @@ workflows:
     jobs:
       - mac-checkout-fast
       - mac-checkout-and-save-cache
+      - osx-verify-arm64-hw
 
       - osx-testing-x64:
           requires:
@@ -2614,6 +2623,10 @@ workflows:
           requires:
             - mac-checkout-and-save-cache
 
+      - osx-testing-arm64-tests:
+          requires:
+            - osx-testing-x64
+
       - mas-testing-x64:
           requires:
             - mac-checkout-and-save-cache
@@ -2629,6 +2642,10 @@ workflows:
       - mas-testing-arm64:
           requires:
             - mac-checkout-and-save-cache
+
+      - mas-testing-arm64-tests:
+          requires:
+            - mas-testing-arm64
 
   nightly-linux-release-test:
     triggers:
