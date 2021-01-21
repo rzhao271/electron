@@ -29,6 +29,7 @@
 #include "shell/common/node_includes.h"
 #include "shell/common/v8_value_serializer.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+#include "third_party/blink/public/mojom/frame/find_in_page.mojom.h"
 
 namespace electron {
 
@@ -354,6 +355,32 @@ v8::Local<v8::ObjectTemplate> WebFrameMain::FillObjectTemplate(
 
 const char* WebFrameMain::GetTypeName() {
   return "WebFrameMain";
+}
+
+uint32_t WebContents::FindInPage(gin::Arguments* args) {
+  base::string16 search_text;
+  if (!args->GetNext(&search_text) || search_text.empty()) {
+    gin_helper::ErrorThrower(args->isolate())
+        .ThrowError("Must provide a non-empty search content");
+    return 0;
+  }
+
+  uint32_t request_id = ++find_in_page_request_id_;
+  gin_helper::Dictionary dict;
+  auto options = blink::mojom::FindOptions::New();
+  if (args->GetNext(&dict)) {
+    dict.Get("forward", &options->forward);
+    dict.Get("matchCase", &options->match_case);
+    dict.Get("findNext", &options->new_session);
+  }
+
+  current_frame_host()->GetFindInPage()->Find(request_id, search_text,
+                                              std::move(options));
+  return request_id;
+}
+
+void WebContents::StopFindInPage(content::StopFindAction action) {
+  current_frame_host()->GetFindInPage()->StopFinding(action);
 }
 
 }  // namespace api

@@ -61,6 +61,9 @@ class WebFrameMain : public gin::Wrappable<WebFrameMain>,
       v8::Local<v8::ObjectTemplate>);
   const char* GetTypeName() override;
 
+  uint32_t FindInPage(gin::Arguments* args);
+  void StopFindInPage(content::StopFindAction action);
+
  protected:
   explicit WebFrameMain(content::RenderFrameHost* render_frame);
   ~WebFrameMain() override;
@@ -104,6 +107,9 @@ class WebFrameMain : public gin::Wrappable<WebFrameMain>,
   // Whether the RenderFrameHost has been removed and that it should no longer
   // be accessed.
   bool render_frame_disposed_ = false;
+
+  // Request id used for findInPage request.
+  uint32_t find_in_page_request_id_ = 0;
 
   DISALLOW_COPY_AND_ASSIGN(WebFrameMain);
 };
