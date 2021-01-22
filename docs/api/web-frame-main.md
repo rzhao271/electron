@@ -142,6 +142,41 @@ ipcRenderer.on('port', (e, msg) => {
 })
 ```
 
+#### `frame.findInPage(text[, options])`
+
+* `text` String - Content to be searched, must not be empty.
+* `options` Object (optional)
+  * `forward` Boolean (optional) - Whether to search forward or backward, defaults to `true`.
+  * `findNext` Boolean (optional) - Whether the operation is first request or a follow up,
+    defaults to `false`.
+  * `matchCase` Boolean (optional) - Whether search should be case-sensitive,
+    defaults to `false`.
+
+Returns `Integer` - The request id used for the request.
+
+Starts a request to find all matches for the `text` in the web page. The result of the request
+can be obtained by subscribing to [`found-in-page`](web-frame.md#event-found-in-page) event.
+
+#### `frame.stopFindInPage(action)`
+
+* `action` String - Specifies the action to take place when ending
+  [`frame.findInPage`] request.
+  * `clearSelection` - Clear the selection.
+  * `keepSelection` - Translate the selection into a normal selection.
+  * `activateSelection` - Focus and click the selection node.
+
+Stops any `findInPage` request for the `webFrameMain` with the provided `action`.
+
+```javascript
+const { webContents } = require('electron')
+webContents.mainFrame.on('found-in-page', (event, result) => {
+  if (result.finalUpdate) webContents.mainFrame.stopFindInPage('clearSelection')
+})
+
+const requestId = webContents.mainFrame.findInPage('api')
+console.log(requestId)
+```
+
 ### Instance Properties
 
 #### `frame.url` _Readonly_

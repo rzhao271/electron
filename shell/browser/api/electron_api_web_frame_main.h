@@ -10,9 +10,12 @@
 #include <vector>
 
 #include "base/process/process.h"
+#include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_delegate.h"
 #include "gin/handle.h"
 #include "gin/wrappable.h"
 #include "shell/common/gin_helper/constructible.h"
+#include "third_party/blink/public/mojom/frame/find_in_page.mojom-forward.h"
 
 class GURL;
 
@@ -34,7 +37,8 @@ namespace api {
 
 // Bindings for accessing frames from the main process.
 class WebFrameMain : public gin::Wrappable<WebFrameMain>,
-                     public gin_helper::Constructible<WebFrameMain> {
+                     public gin_helper::Constructible<WebFrameMain>,
+                     public content::WebContentsDelegate {
  public:
   // Create a new WebFrameMain and return the V8 wrapper of it.
   static gin::Handle<WebFrameMain> New(v8::Isolate* isolate);
@@ -62,7 +66,7 @@ class WebFrameMain : public gin::Wrappable<WebFrameMain>,
   const char* GetTypeName() override;
 
   uint32_t FindInPage(gin::Arguments* args);
-  void StopFindInPage(content::StopFindAction action);
+  void StopFindInPage(blink::mojom::StopFindAction action);
 
  protected:
   explicit WebFrameMain(content::RenderFrameHost* render_frame);
@@ -95,6 +99,13 @@ class WebFrameMain : public gin::Wrappable<WebFrameMain>,
   int ProcessID(v8::Isolate* isolate) const;
   int RoutingID(v8::Isolate* isolate) const;
   GURL URL(v8::Isolate* isolate) const;
+
+  void FindReply(content::WebContents* web_contents,
+                 int request_id,
+                 int number_of_matches,
+                 const gfx::Rect& selection_rect,
+                 int active_match_ordinal,
+                 bool final_update) override;
 
   content::RenderFrameHost* Top(v8::Isolate* isolate) const;
   content::RenderFrameHost* Parent(v8::Isolate* isolate) const;

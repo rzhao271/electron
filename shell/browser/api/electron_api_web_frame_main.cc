@@ -12,6 +12,7 @@
 #include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "content/browser/renderer_host/frame_tree_node.h"  // nogncheck
+#include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/public/browser/render_frame_host.h"
 #include "electron/shell/common/api/api.mojom.h"
 #include "gin/object_template_builder.h"
@@ -24,6 +25,7 @@
 #include "shell/common/gin_converters/value_converter.h"
 #include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/gin_helper/error_thrower.h"
+#include "shell/common/gin_helper/event_emitter.h"
 #include "shell/common/gin_helper/object_template_builder.h"
 #include "shell/common/gin_helper/promise.h"
 #include "shell/common/node_includes.h"
@@ -297,6 +299,60 @@ std::vector<content::RenderFrameHost*> WebFrameMain::FramesInSubtree(
   return frame_hosts;
 }
 
+void WebFrameMain::FindReply(content::WebContents* web_contents,
+                            int request_id,
+                            int number_of_matches,
+                            const gfx::Rect& selection_rect,
+                            int active_match_ordinal,
+                            bool final_update) {
+  if (!final_update)
+    return;
+
+  v8::Isolate* isolate = JavascriptEnvironment::GetIsolate();
+  v8::Locker locker(isolate);
+  v8::HandleScope handle_scope(isolate);
+  gin_helper::Dictionary result = gin::Dictionary::CreateEmpty(isolate);
+  result.Set("requestId", request_id);
+  result.Set("matches", number_of_matches);
+  result.Set("selectionArea", selection_rect);
+  result.Set("activeMatchOrdinal", active_match_ordinal);
+  result.Set("finalUpdate", final_update);  // Deprecate after 2.0
+  Emit("found-in-page", result.GetHandle());
+}
+
+uint32_t WebFrameMain::FindInPage(gin::Arguments* args) {
+  if (!CheckRenderFrame())
+    return 0;
+
+  base::string16 search_text;
+  if (!args->GetNext(&search_text) || search_text.empty()) {
+    gin_helper::ErrorThrower(args->isolate())
+        .ThrowError("Must provide a non-empty search content");
+    return 0;
+  }
+
+  uint32_t request_id = ++find_in_page_request_id_;
+  gin_helper::Dictionary dict;
+  auto options = blink::mojom::FindOptions::New();
+  if (args->GetNext(&dict)) {
+    dict.Get("forward", &options->forward);
+    dict.Get("matchCase", &options->match_case);
+    dict.Get("findNext", &options->new_session);
+  }
+
+  auto *impl = static_cast<content::RenderFrameHostImpl*>(render_frame_);
+  impl->GetFindInPage()->Find(request_id, search_text,
+                                              std::move(options));
+  return request_id;
+}
+
+void WebFrameMain::StopFindInPage(blink::mojom::StopFindAction action) {
+  if (!CheckRenderFrame())
+    return;
+  auto *impl = static_cast<content::RenderFrameHostImpl*>(render_frame_);
+  impl->GetFindInPage()->StopFinding(action);
+}
+
 // static
 gin::Handle<WebFrameMain> WebFrameMain::New(v8::Isolate* isolate) {
   return gin::Handle<WebFrameMain>();
@@ -350,37 +406,13 @@ v8::Local<v8::ObjectTemplate> WebFrameMain::FillObjectTemplate(
       .SetProperty("parent", &WebFrameMain::Parent)
       .SetProperty("frames", &WebFrameMain::Frames)
       .SetProperty("framesInSubtree", &WebFrameMain::FramesInSubtree)
+      .SetMethod("findInPage", &WebFrameMain::FindInPage)
+      .SetMethod("stopFindInPage", &WebFrameMain::StopFindInPage)
       .Build();
 }
 
 const char* WebFrameMain::GetTypeName() {
   return "WebFrameMain";
-}
-
-uint32_t WebContents::FindInPage(gin::Arguments* args) {
-  base::string16 search_text;
-  if (!args->GetNext(&search_text) || search_text.empty()) {
-    gin_helper::ErrorThrower(args->isolate())
-        .ThrowError("Must provide a non-empty search content");
-    return 0;
-  }
-
-  uint32_t request_id = ++find_in_page_request_id_;
-  gin_helper::Dictionary dict;
-  auto options = blink::mojom::FindOptions::New();
-  if (args->GetNext(&dict)) {
-    dict.Get("forward", &options->forward);
-    dict.Get("matchCase", &options->match_case);
-    dict.Get("findNext", &options->new_session);
-  }
-
-  current_frame_host()->GetFindInPage()->Find(request_id, search_text,
-                                              std::move(options));
-  return request_id;
-}
-
-void WebContents::StopFindInPage(content::StopFindAction action) {
-  current_frame_host()->GetFindInPage()->StopFinding(action);
 }
 
 }  // namespace api
