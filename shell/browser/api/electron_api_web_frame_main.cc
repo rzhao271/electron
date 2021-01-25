@@ -20,12 +20,13 @@
 #include "shell/browser/browser.h"
 #include "shell/browser/javascript_environment.h"
 #include "shell/common/gin_converters/blink_converter.h"
+#include "shell/common/gin_converters/content_converter.h"
 #include "shell/common/gin_converters/frame_converter.h"
+#include "shell/common/gin_converters/gfx_converter.h"
 #include "shell/common/gin_converters/gurl_converter.h"
 #include "shell/common/gin_converters/value_converter.h"
 #include "shell/common/gin_helper/dictionary.h"
 #include "shell/common/gin_helper/error_thrower.h"
-#include "shell/common/gin_helper/event_emitter.h"
 #include "shell/common/gin_helper/object_template_builder.h"
 #include "shell/common/gin_helper/promise.h"
 #include "shell/common/node_includes.h"
@@ -300,11 +301,11 @@ std::vector<content::RenderFrameHost*> WebFrameMain::FramesInSubtree(
 }
 
 void WebFrameMain::FindReply(content::WebContents* web_contents,
-                            int request_id,
-                            int number_of_matches,
-                            const gfx::Rect& selection_rect,
-                            int active_match_ordinal,
-                            bool final_update) {
+                             int request_id,
+                             int number_of_matches,
+                             const gfx::Rect& selection_rect,
+                             int active_match_ordinal,
+                             bool final_update) {
   if (!final_update)
     return;
 
@@ -324,7 +325,7 @@ uint32_t WebFrameMain::FindInPage(gin::Arguments* args) {
   if (!CheckRenderFrame())
     return 0;
 
-  base::string16 search_text;
+  std::string search_text;
   if (!args->GetNext(&search_text) || search_text.empty()) {
     gin_helper::ErrorThrower(args->isolate())
         .ThrowError("Must provide a non-empty search content");
@@ -340,16 +341,15 @@ uint32_t WebFrameMain::FindInPage(gin::Arguments* args) {
     dict.Get("findNext", &options->new_session);
   }
 
-  auto *impl = static_cast<content::RenderFrameHostImpl*>(render_frame_);
-  impl->GetFindInPage()->Find(request_id, search_text,
-                                              std::move(options));
+  auto* impl = static_cast<content::RenderFrameHostImpl*>(render_frame_);
+  impl->GetFindInPage()->Find(request_id, search_text, std::move(options));
   return request_id;
 }
 
 void WebFrameMain::StopFindInPage(blink::mojom::StopFindAction action) {
   if (!CheckRenderFrame())
     return;
-  auto *impl = static_cast<content::RenderFrameHostImpl*>(render_frame_);
+  auto* impl = static_cast<content::RenderFrameHostImpl*>(render_frame_);
   impl->GetFindInPage()->StopFinding(action);
 }
 

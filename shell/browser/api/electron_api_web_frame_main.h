@@ -14,8 +14,10 @@
 #include "content/public/browser/web_contents_delegate.h"
 #include "gin/handle.h"
 #include "gin/wrappable.h"
+#include "shell/browser/event_emitter_mixin.h"
 #include "shell/common/gin_helper/constructible.h"
 #include "third_party/blink/public/mojom/frame/find_in_page.mojom-forward.h"
+#include "ui/gfx/image/image.h"
 
 class GURL;
 
@@ -38,6 +40,7 @@ namespace api {
 // Bindings for accessing frames from the main process.
 class WebFrameMain : public gin::Wrappable<WebFrameMain>,
                      public gin_helper::Constructible<WebFrameMain>,
+                     public gin_helper::EventEmitterMixin<WebFrameMain>,
                      public content::WebContentsDelegate {
  public:
   // Create a new WebFrameMain and return the V8 wrapper of it.

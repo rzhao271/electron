@@ -23,6 +23,7 @@
 #include "third_party/blink/public/common/input/web_mouse_event.h"
 #include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
 #include "third_party/blink/public/common/widget/device_emulation_params.h"
+#include "third_party/blink/public/mojom/frame/find_in_page.mojom-shared.h"
 #include "third_party/blink/public/platform/web_size.h"
 #include "ui/base/clipboard/clipboard.h"
 #include "ui/events/blink/blink_event_util.h"
@@ -360,6 +361,27 @@ v8::Local<v8::Value> Converter<blink::ContextMenuDataInputFieldType>::ToV8(
     default:
       return StringToV8(isolate, "none");
   }
+}
+
+// static
+bool Converter<blink::mojom::StopFindAction>::FromV8(
+    v8::Isolate* isolate,
+    v8::Local<v8::Value> val,
+    blink::mojom::StopFindAction* out) {
+  std::string action;
+  if (!ConvertFromV8(isolate, val, &action))
+    return false;
+
+  if (action == "clearSelection")
+    *out = blink::mojom::StopFindAction::kStopFindActionClearSelection;
+  else if (action == "keepSelection")
+    *out = blink::mojom::StopFindAction::kStopFindActionKeepSelection;
+  else if (action == "activateSelection")
+    *out = blink::mojom::StopFindAction::kStopFindActionActivateSelection;
+  else
+    return false;
+
+  return true;
 }
 
 v8::Local<v8::Value> EditFlagsToV8(v8::Isolate* isolate, int editFlags) {
